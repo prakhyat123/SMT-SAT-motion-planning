@@ -160,14 +160,14 @@ print("*****Total constraints end*******")
 solver = Solver()
 solver.add(constraints)
 solver.add(cost>0)
-solver.add(cost<22)
+solver.add(cost<=22)
 if solver.check() == sat:
     m=solver.model()
     r = [ [ str([m.evaluate(S[i][j][0]),m.evaluate(S[i][j][1])]) for j in range(R) ]for i in range(L) ]
     change = [ [ str([m.evaluate(statechange[i][j][0]),m.evaluate(statechange[i][j][1])]) for j in range(R) ]for i in range(L-1) ]
     print_matrix(r)
     print_matrix(change)
-    print(m.evaluate(cost))
+    print("Total cosst for the run is "+ str(m.evaluate(cost)))
 else:
     print "failed to solve the model"
 
