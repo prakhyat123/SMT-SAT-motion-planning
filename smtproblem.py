@@ -1,62 +1,26 @@
 from z3 import *
+import ast
 
 # Total Constrains
 constraints=[]
 
+#declaring cost
+cost = Real('cost')
+
 #Define makespan(length of longest trajectory) L+1
-L=10
+L=7
 
 #Define number of robots
 R=4
 
+#Final Positions (0, 0), (0, 4), (4, 0) and (4, 4)
+FP=[[0,0],[0,4],[4,0],[4,4]]
+
+#Obstacles list (2, 0), (3, 0), (1, 2), (3, 2), (1, 4), and (2, 4)
+obstacles=[[2,0],[3,0],[1,2],[3,2],[1,4],[2,4]]
+
 # motion primivites displacement (N,S,E,W,NE,NW,SE,SW,stay)
 MP=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,1],[1,-1],[-1,-1],[0,0]]
-motionprimitive_constraints=[]
-mp0x,mp1x,mp2x,mp3x,mp4x,mp5x,mp6x,mp7x,mp8x=Int('mp0x'),Int('mp1x'),Int('mp2x'),Int('mp3x'),Int('mp4x'),Int('mp5x'),Int('mp6x'),Int('mp7x'),Int('mp8x')
-mp0y,mp1y,mp2y,mp3y,mp4y,mp5y,mp6y,mp7y,mp8y=Int('mp0y'),Int('mp1y'),Int('mp2y'),Int('mp3y'),Int('mp4y'),Int('mp5y'),Int('mp6y'),Int('mp7y'),Int('mp8y')
-motionprimitive_constraints.append(mp0x==0)
-motionprimitive_constraints.append(mp0y==1)
-motionprimitive_constraints.append(mp1x==0)
-motionprimitive_constraints.append(mp1y==-1)
-motionprimitive_constraints.append(mp2x==1)
-motionprimitive_constraints.append(mp2y==0)
-motionprimitive_constraints.append(mp3x==-1)
-motionprimitive_constraints.append(mp3y==0)
-motionprimitive_constraints.append(mp4x==1)
-motionprimitive_constraints.append(mp4y==1)
-motionprimitive_constraints.append(mp5x==-1)
-motionprimitive_constraints.append(mp5y==1)
-motionprimitive_constraints.append(mp6x==1)
-motionprimitive_constraints.append(mp6y==-1)
-motionprimitive_constraints.append(mp7x==-1)
-motionprimitive_constraints.append(mp7y==-1)
-motionprimitive_constraints.append(mp8x==0)
-motionprimitive_constraints.append(mp8y==0)
-
-constraints+=motionprimitive_constraints
-
-def motionprimitive(variable):
-    if variable==0:
-        return mp0x,mp0y
-    elif variable==1:
-        return mp1x,mp1y
-    elif variable==2:
-        return mp2x,mp2y
-    elif variable==3:
-        return mp3x,mp3y
-    elif variable==4:
-        return mp4x,mp4y
-    elif variable==5:
-        return mp5x,mp5y
-    elif variable==6:
-        return mp6x,mp6y
-    elif variable==7:
-        return mp7x,mp7y
-    elif variable==8:
-        return mp8x,mp8y
-    else:
-        return "error"
-
 
 # Creating list of state vectors for all the time instints
 S=[]
@@ -64,25 +28,37 @@ for i in range(L):
     temp_state= [ [Int('%sx%s' % (j,i)),Int('%sy%s' % (j,i))] for j in range(R)]
     S.append(temp_state)
 
-# Creating list of motion primitives at every time instant
-M=[]
-for i in range(L):
-    temp_state= [ Int('%sm%s' % (j,i)) for j in range(R)]
-    M.append(temp_state)
-print(M)
+#State boundary conditions (robot needs to lie in the grid itself)
+stateboundary_constraints=[]
+for state in S:
+    for robot in state:
+        stateboundary_constraints.append(And(robot[0]>-1,robot[0]<5))
+        stateboundary_constraints.append(And(robot[1]>-1,robot[1]<5))
 
-#Obstacles logic
+constraints+=stateboundary_constraints
 
+#captures the change at every time step
+statechange=[]
+for i in range(L-1):
+    temp_state= [ [Int('%sxd%s' % (j,i)),Int('%syd%s' % (j,i))] for j in range(R)]
+    statechange.append(temp_state)
 
-# Primitive Selection
-primitive_bound_constraints=[]
-for m in M:
-    for r in m:
-        #primitive motion lies between 0 and  8 inclusive
-        primitive_bound_constraints.append(r<9)
-        primitive_bound_constraints.append(r>-1) 
+statechange_constraints=[]
+# State change constraints, state can be allowed to change only in few motion primitives
+for state in statechange:
+    for robot in state:
+            #the change can be among eight action primitives
+            statechange_constraints.append(Or(And(robot[0]==MP[0][0],robot[1]==MP[0][1]),
+                                            And(robot[0]==MP[1][0],robot[1]==MP[1][1]),
+                                            And(robot[0]==MP[2][0],robot[1]==MP[2][1]),
+                                            And(robot[0]==MP[3][0],robot[1]==MP[3][1]),
+                                            And(robot[0]==MP[4][0],robot[1]==MP[4][1]),
+                                            And(robot[0]==MP[5][0],robot[1]==MP[5][1]),
+                                            And(robot[0]==MP[6][0],robot[1]==MP[6][1]),
+                                            And(robot[0]==MP[7][0],robot[1]==MP[7][1]),
+                                            And(robot[0]==MP[8][0],robot[1]==MP[8][1])))
 
-constraints+=primitive_bound_constraints
+constraints+=statechange_constraints
 
 #constraints for initial condition
 initial_constraints=[ S[0][0][0]==0,S[0][0][1]==0,S[0][1][0]==0,S[0][1][1]==1,
@@ -97,16 +73,85 @@ for state_index,state in enumerate(S):
     if state_index==0:
         continue
     for robot_index,robot in enumerate(state):
-        continuity_trajectory_constraints.append(robot[0]==S[state_index-1][robot_index][0]+motionprimitive(M[state_index-1][robot_index])[0])
-        continuity_trajectory_constraints.append(robot[1]==S[state_index-1][robot_index][1]+motionprimitive(M[state_index-1][robot_index])[1])
+        continuity_trajectory_constraints.append(robot[0]==S[state_index-1][robot_index][0]+statechange[state_index-1][robot_index][0])
+        continuity_trajectory_constraints.append(robot[1]==S[state_index-1][robot_index][1]+statechange[state_index-1][robot_index][1])
 
 constraints+=continuity_trajectory_constraints
 
-#Obstacle avoidance
+#Obstacle avoidance constraint
 obstacle_avoidance_constraints=[]
-for r in range(R):
-    for t in range(L):
-        
+for state in S:
+    for robot in state:
+        for obs in obstacles:
+            obstacle_avoidance_constraints.append(Not(And(robot[0]==obs[0],robot[1]==obs[1])))
+
+constraints+=obstacle_avoidance_constraints
+
+# collision avoidance constraint
+collision_avoidance_constraints=[]
+for state in S:
+    for index1,robot1 in enumerate(state):
+        for index2,robot2 in enumerate(state):
+            if (index1==index2 or index1>index2):
+                continue
+            collision_avoidance_constraints.append(Not(And(robot1[0]==robot2[0],robot1[1]==robot2[1])))
+
+constraints+=collision_avoidance_constraints
+
+# head-on horizontal collision avoidance constraint
+headOn_horizontalcollision_avoidance_constraints=[]
+for state_index,state in enumerate(S[:-1]):
+    for index1,robot1 in enumerate(state):
+        for index2,robot2 in enumerate(state):
+            if (index1==index2):
+                continue
+            headOn_horizontalcollision_avoidance_constraints.append(Not(And(robot2[0]==robot1[0]+1,S[state_index+1][index1][0]==S[state_index+1][index2][0]+1)))
+
+constraints+=headOn_horizontalcollision_avoidance_constraints
+
+# head-on vertical collision avoidance constraint
+headOn_verticalcollision_avoidance_constraints=[]
+for state_index,state in enumerate(S[:-1]):
+    for index1,robot1 in enumerate(state):
+        for index2,robot2 in enumerate(state):
+            if (index1==index2):
+                continue
+            headOn_verticalcollision_avoidance_constraints.append(Not(And(robot2[1]==robot1[1]+1,S[state_index+1][index1][1]==S[state_index+1][index2][1]+1)))
+
+constraints+=headOn_verticalcollision_avoidance_constraints
+
+#Goal conditions every final position needs to be occupied by a robot
+final_goal_constraints=[]
+for state in S[-1:]:
+    for robot in state:              
+        final_goal_constraints.append(Or(And(robot[0]==FP[0][0],robot[1]==FP[0][1]),
+                                            And(robot[0]==FP[1][0],robot[1]==FP[1][1]),
+                                            And(robot[0]==FP[2][0],robot[1]==FP[2][1]),
+                                            And(robot[0]==FP[3][0],robot[1]==FP[3][1])))
+constraints+=final_goal_constraints
+
+#Linear temporal properties: every non obstacle point needs to be visited atleast once
+temporal_properties_constraints=[]
+for i in range(5):
+    for j in range(5):
+        if ([i,j] in obstacles) or ([i,j] in FP):
+            continue
+        temporal_poisiton=[]
+        for state in S:
+            for robot in state:
+                temporal_poisiton.append(And(robot[0]==i,robot[1]==j))
+        temporal_properties_constraints.append(Or(temporal_poisiton))
+
+constraints+=temporal_properties_constraints
+
+#Calculate cost as sum of state change
+cost_all=[]
+for state in statechange:
+    cost_all.append(Sum([If(Or(And(robot[0]==1,robot[1]==1),And(robot[0]==-1,robot[1]==-1)
+                ,And(robot[0]==1,robot[1]==-1),And(robot[0]==-1,robot[1]==1)),1.5,
+                If(And(robot[0]==0,robot[1]==0),0.5,1)) for robot in state]))
+
+cost=Sum(cost_all)
 
 print("*****Total constraints start*****")
 print(constraints)
@@ -114,12 +159,15 @@ print("*****Total constraints end*******")
 
 solver = Solver()
 solver.add(constraints)
+solver.add(cost>0)
+solver.add(cost<22)
 if solver.check() == sat:
     m=solver.model()
     r = [ [ str([m.evaluate(S[i][j][0]),m.evaluate(S[i][j][1])]) for j in range(R) ]for i in range(L) ]
-    motion = [ [ str(m.evaluate(M[i][j])) for j in range(R) ]for i in range(L) ]
+    change = [ [ str([m.evaluate(statechange[i][j][0]),m.evaluate(statechange[i][j][1])]) for j in range(R) ]for i in range(L-1) ]
     print_matrix(r)
-    print_matrix(motion)
+    print_matrix(change)
+    print(m.evaluate(cost))
 else:
     print "failed to solve the model"
 

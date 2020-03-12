@@ -1,0 +1,18 @@
+from z3 import *
+p = Bool('p')
+q = Bool('q')
+r = Bool('r')
+solve(Implies(p, q), r == Not(q), Or(Not(p), r))
+
+The Python Boolean constants True and False can be used to build Z3 Boolean expressions.
+
+p = Bool('p')
+q = Bool('q')
+print And(p, q, True)
+print simplify(And(p, q, True))
+print simplify(And(p, False))
+The following example uses a combination of polynomial and Boolean constraints.
+
+p = Bool('p')
+x = Real('x')
+solve(Or(x < 5, x > 10), Or(p, x**2 == 2), Not(p))
