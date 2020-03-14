@@ -1,5 +1,4 @@
 from z3 import *
-import ast
 
 # Total Constrains
 constraints=[]
@@ -22,7 +21,7 @@ obstacles=[[2,0],[3,0],[1,2],[3,2],[1,4],[2,4]]
 # motion primivites displacement (N,S,E,W,NE,NW,SE,SW,stay)
 MP=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,1],[1,-1],[-1,-1],[0,0]]
 
-# Creating list of state vectors for all the time instints
+# Creating list of state vectors for all the time instants
 S=[]
 for i in range(L):
     temp_state= [ [Int('%sx%s' % (j,i)),Int('%sy%s' % (j,i))] for j in range(R)]
@@ -120,6 +119,20 @@ for state_index,state in enumerate(S[:-1]):
 
 constraints+=headOn_verticalcollision_avoidance_constraints
 
+# Diagonal head on collision 
+headOn_diagonal_collision_avoidance_constraints=[]
+for state_index,state in enumerate(S[:-1]):
+    for index1,robot1 in enumerate(state):
+        for index2,robot2 in enumerate(state):
+            if (index1==index2):
+                continue
+            headOn_diagonal_collision_avoidance_constraints.append(Not(And(robot2[1]==robot1[1]+1,robot2[0]==robot1[0]+1,S[state_index+1][index1][1]==S[state_index+1][index2][1]+1,S[state_index+1][index1][0]==S[state_index+1][index2][0]+1)))
+            headOn_diagonal_collision_avoidance_constraints.append(Not(And(robot2[1]==robot1[1]-1,robot2[0]==robot1[0]-1,S[state_index+1][index1][1]==S[state_index+1][index2][1]-1,S[state_index+1][index1][0]==S[state_index+1][index2][0]-1)))
+            headOn_diagonal_collision_avoidance_constraints.append(Not(And(robot2[1]==robot1[1]+1,robot2[0]==robot1[0]-1,S[state_index+1][index1][1]==S[state_index+1][index2][1]+1,S[state_index+1][index1][0]==S[state_index+1][index2][0]-1)))
+            headOn_diagonal_collision_avoidance_constraints.append(Not(And(robot2[1]==robot1[1]-1,robot2[0]==robot1[0]+1,S[state_index+1][index1][1]==S[state_index+1][index2][1]-1,S[state_index+1][index1][0]==S[state_index+1][index2][0]+1)))
+
+constraints+=headOn_diagonal_collision_avoidance_constraints
+
 #Goal conditions every final position needs to be occupied by a robot
 final_goal_constraints=[]
 for state in S[-1:]:
@@ -162,12 +175,14 @@ solver.add(constraints)
 solver.add(cost>0)
 solver.add(cost<=22)
 if solver.check() == sat:
+    print("A solution exists!!!")
     m=solver.model()
+    print("position of 4 robots through "+str(L-1)+" time instints ,where row is particular time instant and column is the robot")
     r = [ [ str([m.evaluate(S[i][j][0]),m.evaluate(S[i][j][1])]) for j in range(R) ]for i in range(L) ]
     change = [ [ str([m.evaluate(statechange[i][j][0]),m.evaluate(statechange[i][j][1])]) for j in range(R) ]for i in range(L-1) ]
     print_matrix(r)
     print_matrix(change)
-    print("Total cosst for the run is "+ str(m.evaluate(cost)))
+    print("Total cost for the run is "+ str(m.evaluate(cost)))
 else:
     print "failed to solve the model"
 
